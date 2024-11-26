@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List
 import uuid
 from datetime import datetime
@@ -15,6 +15,14 @@ class Item(BaseModel):
     shortDescription: str
     price: float
 
+    @field_validator('price')
+    def validate_price(cls, v):
+        try:
+            float(v)
+            return v
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid price format")
+
 
 class Receipt(BaseModel):
     retailer: str
@@ -22,6 +30,22 @@ class Receipt(BaseModel):
     purchaseTime: str
     items: List[Item]
     total: str
+
+    @field_validator('purchaseDate')
+    def validate_purchase_date(cls, v):
+        try:
+            datetime.strptime(v, '%Y-%m-%d')
+            return v
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+    @field_validator('purchaseTime')
+    def validate_purchase_time(cls, v):
+        try:
+            datetime.strptime(v, '%H:%M')
+            return v
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM")
 
 
 class ReceiptResponse(BaseModel):
@@ -33,6 +57,15 @@ class PointsResponse(BaseModel):
 
 
 def calculate_points(receipt: Receipt) -> int:
+    """
+        Calculates points for the given receipt based on several rules.
+
+        Args:
+            receipt (Receipt): The receipt object.
+
+        Returns:
+            int: The total points for the receipt.
+    """
     points = 0
 
     # Rule 1: One point for every alphanumeric character n the retailer name
@@ -92,6 +125,8 @@ async def get_points(uid: str):
 
     return PointsResponse(points=receipts_store[uid])
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
