@@ -1,0 +1,88 @@
+{
+	"info": {
+		"_postman_id": "receipt-processor-collection",
+		"name": "Receipt Processor API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"items": [
+		{
+			"name": "Process Receipt - Target",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"retailer\": \"Target\",\n    \"purchaseDate\": \"2022-01-01\",\n    \"purchaseTime\": \"13:01\",\n    \"items\": [\n        {\n            \"shortDescription\": \"Mountain Dew 12PK\",\n            \"price\": \"6.49\"\n        },\n        {\n            \"shortDescription\": \"Emils Cheese Pizza\",\n            \"price\": \"12.25\"\n        },\n        {\n            \"shortDescription\": \"Knorr Creamy Chicken\",\n            \"price\": \"1.26\"\n        },\n        {\n            \"shortDescription\": \"Doritos Nacho Cheese\",\n            \"price\": \"3.35\"\n        },\n        {\n            \"shortDescription\": \"   Klarbrunn 12-PK 12 FL OZ  \",\n            \"price\": \"12.00\"\n        }\n    ],\n    \"total\": \"35.35\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8000/receipts/process",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"receipts",
+						"process"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Points - After Processing",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/receipts/{{receipt_id}}/points",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"receipts",
+						"{{receipt_id}}",
+						"points"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Process Receipt - M&M Market",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"retailer\": \"M&M Corner Market\",\n    \"purchaseDate\": \"2022-03-20\",\n    \"purchaseTime\": \"14:33\",\n    \"items\": [\n        {\n            \"shortDescription\": \"Gatorade\",\n            \"price\": \"2.25\"\n        },\n        {\n            \"shortDescription\": \"Gatorade\",\n            \"price\": \"2.25\"\n        },\n        {\n            \"shortDescription\": \"Gatorade\",\n            \"price\": \"2.25\"\n        },\n        {\n            \"shortDescription\": \"Gatorade\",\n            \"price\": \"2.25\"\n        }\n    ],\n    \"total\": \"9.00\"\n}"
+				},
+				"url": {
+					"raw": "http://localhost:8000/receipts/process",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"receipts",
+						"process"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
