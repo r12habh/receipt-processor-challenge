@@ -1,132 +1,117 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, field_validator
-from typing import List
-import uuid
-from datetime import datetime
-import math
+# Import required modules
+from fastapi import FastAPI, HTTPException, \
+    Request  # FastAPI is used to create APIs quickly, and HTTPException handles errors.
+from pydantic import ValidationError
+import uuid  # Generates unique IDs for receipts.
+import logging
+from fastapi.responses import JSONResponse
+from rate_limiter import RateLimiter
+from time import time
+from models import Receipt, PointsResponse, ReceiptResponse
+from utils import calculate_points
 
-app = FastAPI()
+# Configure logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Rate limiting configuration (simple in-memory implementation)
+rate_limiter = RateLimiter(max_requests=10)  # Customize as needed
+
+# Create an instance of the FastAPI app
+app = FastAPI(
+    title="Receipt Processor API",
+    description="A simple API for processing and calculating points for receipts",
+    version="1.0.0",
+    # openapi_url="/api/docs",
+    # docs_url="/api/docs",
+    # redoc_url="/api/redoc"  # ReDoc provides a user-friendly interface for API documentation.
+)  # This initializes the FastAPI application where routes (endpoints) are defined.
 
 # In-memory storage for receipts and their points
-receipts_store = {}
+receipts_store = {}  # Dictionary to store receipt IDs and their corresponding points.
 
 
-class Item(BaseModel):
-    shortDescription: str
-    price: float
-
-    @field_validator('price')
-    def validate_price(cls, v):
-        try:
-            float(v)
-            return v
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid price format")
-
-
-class Receipt(BaseModel):
-    retailer: str
-    purchaseDate: str
-    purchaseTime: str
-    items: List[Item]
-    total: str
-
-    @field_validator('purchaseDate')
-    def validate_purchase_date(cls, v):
-        try:
-            datetime.strptime(v, '%Y-%m-%d')
-            return v
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
-
-    @field_validator('purchaseTime')
-    def validate_purchase_time(cls, v):
-        try:
-            datetime.strptime(v, '%H:%M')
-            return v
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM")
-
-
-class ReceiptResponse(BaseModel):
-    id: str
-
-
-class PointsResponse(BaseModel):
-    points: int
-
-
-def calculate_points(receipt: Receipt) -> int:
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
     """
-        Calculates points for the given receipt based on several rules.
-
-        Args:
-            receipt (Receipt): The receipt object.
-
-        Returns:
-            int: The total points for the receipt.
+    Middleware for logging requests and adding processing time
+    :param request:
+    :param call_next:
+    :return:
     """
-    points = 0
-
-    # Rule 1: One point for every alphanumeric character n the retailer name
-    points += sum(c.isalnum() for c in receipt.retailer)
-
-    # Rule 2: 50 points if the total is a round dollar amount with no cents
-    total = float(receipt.total)
-    if total.is_integer():
-        points += 50
-
-    # Rule 3: 25 points if the total is a multiple of 0.25
-    if total % 0.25 == 0:
-        points += 25
-
-    # Rule 4: 5 points for every two items on the receipt
-    points += (len(receipt.items) // 2) * 5
-
-    # Rule 5: If the trimmed length of the item description is a multiple of 3,
-    # multiply the price by 0.2 and round up to the nearest integer
-    for item in receipt.items:
-        desc_length = len(item.shortDescription.strip())
-        if desc_length % 3 == 0:
-            item_points = math.ceil(float(item.price) * 0.2)
-            points += item_points
-
-    # Rule 6: 6 points if the day in the purchase date is odd
-    purchase_date = datetime.strptime(receipt.purchaseDate, "%Y-%m-%d")
-    if purchase_date.day % 2 == 1:
-        points += 6
-
-    # Rule 7: 10 points if the time of purchase is after 2:00pm and before 4:00pm
-    purchase_time = datetime.strptime(receipt.purchaseTime, "%H:%M").time()
-    if datetime.strptime("14:00", "%H:%M").time() <= purchase_time <= datetime.strptime("16:00", "%H:%M").time():
-        points += 10
-
-    return points
+    logger.info(f"Request: {request.method} {request.url}")
+    start_time = time()
+    response = await call_next(request)
+    process_time = time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
 
 
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    """
+    Custom exception handler for validation errors
+    :param request:
+    :param exc:
+    :return:
+    """
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()}
+    )
+
+
+# Define an endpoint to process a receipt and calculate its points
 @app.post("/receipts/process", response_model=ReceiptResponse)
-async def process_receipt(receipt: Receipt):
-    # Generate a unique ID
-    receipt_id = str(uuid.uuid4())
+async def process_receipt(request: Request, receipt: Receipt):
+    # Apply rate limiting
+    await rate_limiter.limit_request(request)
 
-    # Calculate points
-    points = calculate_points(receipt)
+    try:
+        # Generate a unique ID
+        receipt_id = str(uuid.uuid4())
 
-    # Store the receipt and its points
-    receipts_store[receipt_id] = points
+        # Calculate points
+        points = calculate_points(receipt)
 
-    return ReceiptResponse(id=receipt_id)
+        # Store the receipt and its points
+        receipts_store[receipt_id] = points
+
+        logger.info(f"Receipt processed: {receipt_id}")
+        return ReceiptResponse(id=receipt_id)
+
+    except Exception as e:
+        logger.error(f"Error processing receipt: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred while processing the receipt")
 
 
 @app.get("/receipts/{uid}/points", response_model=PointsResponse)
 async def get_points(uid: str):
-    if uid not in receipts_store:
-        raise HTTPException(status_code=404, detail="Receipt not found")
+    try:
+        # Check if the receipt ID exists in the store
+        if uid not in receipts_store:
+            logger.warning(f"Receipt not found: {uid}")
+            raise HTTPException(status_code=404, detail="Receipt not found")
 
-    return PointsResponse(points=receipts_store[uid])
+        logger.info(f"Points retrieved for receipt: {uid}")
+        # Return the points for the receipt
+        return PointsResponse(points=receipts_store[uid])
+    except Exception as e:
+        logger.error(f"Error retrieving points: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred while retrieving the points")
 
 
+@app.get("/health")
+async def health_check():
+    """
+    Simple health check endpoint
+    :return:
+    """
+    return {"status": "healthy"}
+
+# Entry point for running the application
 if __name__ == "__main__":
-    import uvicorn
+    import uvicorn  # Uvicorn is a server for running FastAPI applications.
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # Start the server on port 8000

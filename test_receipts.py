@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from main import app, calculate_points, Receipt
 from datetime import datetime
 import math
+from utils import rule8
 
 # Create the test client
 client = TestClient(app)
@@ -89,7 +90,7 @@ def test_market_receipt():
     print(
         f"Time Points: {10 if (datetime.strptime('14:00', '%H:%M').time() <= datetime.strptime(receipt_obj.purchaseTime, '%H:%M').time() <= datetime.strptime('16:00', '%H:%M').time()) else 0}")
 
-    assert points == 109, f"Expected 109 points but got {points}"
+    assert points == 149, f"Expected 149 points but got {points}"
 
 
 def test_process_receipt():
@@ -116,3 +117,36 @@ def test_process_receipt():
     points_response = client.get(f"/receipts/{receipt_id}/points")
     assert points_response.status_code == 200
     assert "points" in points_response.json()
+
+
+def test_rule8():
+    receipt = {
+        "retailer": "M&M Corner Market",
+        "purchaseDate": "2022-03-20",
+        "purchaseTime": "14:33",
+        "items": [
+            {
+                "shortDescription": " Gatorade",
+                "price": "2.25"
+            },
+            {
+                "shortDescription": "gatorade",
+                "price": "2.25"
+            },
+            {
+                "shortDescription": "Mgatorade",
+                "price": "2.25"
+            },
+            {
+                "shortDescription": "Gatorade",
+                "price": "2.25"
+            }
+        ],
+        "total": "9.00"
+    }
+
+    # Print detailed breakdown for debugging
+    receipt_obj = Receipt(**receipt)
+    points = rule8(receipt_obj.items)
+
+    assert points == 40, f"Expected 40 points but got {points}"
