@@ -50,6 +50,16 @@ class Receipt(BaseModel):
             raise ValueError("Receipt must have at least one item")
         return v
 
+    @field_validator('total')
+    def validate_total(cls, v, values):
+        """Validate that total matches sum of item prices"""
+        if 'items' in values:
+            items_total = sum(item.price for item in values['items'])
+            if abs(items_total - v) > 0.01:  # Allow for small point differences
+                raise ValidationError("Total does not match sum of item prices")
+
+        return v
+
 
 class ReceiptResponse(BaseModel):
     """Response model to return the receipt ID."""
