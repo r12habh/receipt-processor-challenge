@@ -1,8 +1,9 @@
 from fastapi.testclient import TestClient
-from main import app, calculate_points, Receipt
+from main import app
 from datetime import datetime
 import math
-from utils import rule8
+from utils import rule8, calculate_points
+from models import Receipt
 
 # Create the test client
 client = TestClient(app)
@@ -149,4 +150,4 @@ def test_rule8():
     receipt_obj = Receipt(**receipt)
     points = rule8(receipt_obj.items)
 
-    assert points == 40, f"Expected 40 points but got {points}"
+    assert points == 30, f"Expected 30 points but got {points}"

@@ -59,11 +59,44 @@ def calculate_points(receipt: Receipt) -> int:
     if datetime.strptime("14:01", "%H:%M").time() <= purchase_time < datetime.strptime("16:00", "%H:%M").time():
         points += 10
 
-    # Rule 8: 10 additional point for every item which starts with char g or G
-    # for item in receipt.items:
-    #     item_name = item.shortDescription.strip()
-    #     if item_name[0].lower() == 'g':
-    #         points += 10
     points += rule8(receipt.items)
 
     return points
+
+
+def generate_receipt_hash(receipt: Receipt) -> str:
+    """
+    Generates SHA-256 hash for the given receipt to detect duplicates.
+    Normalizes the receipt data before hashing to ensure consistent results.
+
+    Args:
+        receipt (Receipt): The receipt object.
+
+    Returns:
+        str: The SHA-256 hash of the receipt.
+    """
+    import hashlib
+    import json
+    # Create a normalized dictionary of receipt data
+    receipt_dict = {
+        'retailer': receipt.retailer.strip().lower(),  # Normalize retailer name
+        'purchaseDate': receipt.purchaseDate,
+        'purchaseTime': receipt.purchaseTime,
+        'items': [
+            {
+                'shortDescription': item.shortDescription.strip().lower(),
+                'price': float(item.price)
+            }
+            for item in sorted(  # Sort items to ensure consistent ordering
+                receipt.items,
+                key=lambda x: (x.shortDescription.strip().lower(), float(x.price))
+            )
+        ],
+        'total': float(receipt.total)  # Ensure consistent float representation
+    }
+
+    # Convert to JSON string with sorted keys for consistency
+    receipt_json = json.dumps(receipt_dict, sort_keys=True)
+
+    # Generate hash using SHA-256
+    return hashlib.sha256(receipt_json.encode('utf8')).hexdigest()

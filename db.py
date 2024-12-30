@@ -15,7 +15,7 @@ class ReceiptDB(Base):
 
     id = Column(String(36), primary_key=True)
     retailer = Column(String(255), nullable=False)
-    purchase_date = Column(DateTime, nullable=False)
+    purchase_date = Column(String(10), nullable=False)
     purchase_time = Column(String(5), nullable=False)
     total = Column(Float, nullable=False)
     items = relationship('ItemDB', back_populates='receipt', cascade="all, delete-orphan")
@@ -30,7 +30,7 @@ class ItemDB(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     receipt_id = Column(String(36), ForeignKey('receipts.id', ondelete='CASCADE'), nullable=False)
-    shortDescription = Column(String(255), nullable=False)
+    short_description = Column(String(255), nullable=False)
     price = Column(Float, nullable=False)
     receipt = relationship('ReceiptDB', back_populates='items')
 
