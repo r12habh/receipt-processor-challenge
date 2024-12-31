@@ -2,8 +2,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
-import hashlib
-import json
 import os
 
 Base = declarative_base()
@@ -18,11 +16,24 @@ class ReceiptDB(Base):
     purchase_date = Column(String(10), nullable=False)
     purchase_time = Column(String(5), nullable=False)
     total = Column(Float, nullable=False)
-    items = relationship('ItemDB', back_populates='receipt', cascade="all, delete-orphan")
+    items = relationship('ItemDB', back_populates='receipt', cascade="all, delete-orphan",
+                         lazy='joined')  # Enabled joined loading by default
     points = Column(Integer, nullable=False)
     receipt_hash = Column(String(64), nullable=False, unique=True)
 
-    __table_args__ = (Index('idx_receipt_hash', 'receipt_hash'),)
+    # Add composite index for date-based queries
+    __table_args__ = (
+        Index('idx_receipt_hash', 'receipt_hash'),
+        Index('idx_purchase_date_retailer', 'purchase_date', 'retailer'),
+    )
+
+    @property
+    def purchase_datetime(self):
+        """
+        Helper property to get datetime object when needed
+        :return:
+        """
+        return datetime.strptime(f'{self.purchase_date} {self.purchase_time}', '%Y-%m-%d %H:%M')
 
 
 class ItemDB(Base):
@@ -34,6 +45,10 @@ class ItemDB(Base):
     price = Column(Float, nullable=False)
     receipt = relationship('ReceiptDB', back_populates='items')
 
+    __table_args__ = (
+        Index('idx_receipt_items', 'receipt_id', 'short_description'),
+    )
+
 
 def init_db():
     # Create a 'data' directory if it doesn't exist
@@ -41,7 +56,11 @@ def init_db():
         os.makedirs('data')
 
     # Connect to the SQLite database
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=5,
+        max_overflow=10
+    )
 
     # Create all tables
     Base.metadata.create_all(engine)

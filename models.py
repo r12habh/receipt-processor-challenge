@@ -51,13 +51,16 @@ class Receipt(BaseModel):
         return v
 
     @field_validator('total')
-    def validate_total(cls, v, values):
+    def validate_total(cls, v, info):
         """Validate that total matches sum of item prices"""
-        if 'items' in values:
-            items_total = sum(item.price for item in values['items'])
-            if abs(items_total - v) > 0.01:  # Allow for small point differences
-                raise ValidationError("Total does not match sum of item prices")
-
+        try:
+            items = info.data.get('items', [])
+            if items:
+                items_total = sum(item.price for item in items)
+                if abs(items_total - v) > 0.01:  # Allow for small point differences
+                    raise ValueError("Total does not match sum of item prices")
+        except Exception as e:
+            raise ValueError(f"Error validating total: {e}")
         return v
 
 
