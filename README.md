@@ -23,6 +23,7 @@ uvicorn main:app --reload
 ### Run Tests
 ```bash
 pytest test_receipts.py -v -s
+pytest test_tags.py -v -s
 ```
 
 ## Docker Deployment
