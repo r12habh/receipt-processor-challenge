@@ -10,6 +10,11 @@ class Item(BaseModel):
     price: float
 
 
+class Tag(BaseModel):
+    """Model representing a receipt tag."""
+    name: str
+
+
 class Receipt(BaseModel):
     """Model representing a complete receipt."""
     retailer: str
@@ -72,3 +77,9 @@ class ReceiptResponse(BaseModel):
 class PointsResponse(BaseModel):
     """Response model to return points for a receipt."""
     points: int  # The total points for a given receipt.
+
+
+class TagResponse(BaseModel):
+    """Response model for receipt tags."""
+    receipt_id: str  # The ID of the receipt
+    tags: List[str]  # The list of tags

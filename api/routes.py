@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, \
 import uuid  # Generates unique IDs for receipts.
 import logging
 from rate_limiter import RateLimiter
-from models import Receipt, PointsResponse, ReceiptResponse
+from models import Receipt, PointsResponse, ReceiptResponse, TagResponse
 from utils import calculate_points, generate_receipt_hash
 from db import get_db, ReceiptDB, ItemDB
-from typing import Annotated
 from sqlalchemy.orm import Session
+from tag_utils import tag_receipt
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,23 @@ async def get_points(uid: str, db=Depends(get_db)):
     except Exception as e:
         logger.error(f"Error retrieving points: {e}")
         raise HTTPException(status_code=500, detail="An error occurred while retrieving the points")
+
+
+@router.post("/receipts/{receipt_id}/tags", response_model=TagResponse)
+async def tag_receipt_endpoint(receipt_id: str, db: Session = Depends(get_db)):
+    """
+    Tag a receipt based on predefined conditions.
+    """
+    try:
+        tags = tag_receipt(db, receipt_id)
+        logger.info(f"Tags applied to receipt: {receipt_id}")
+        return TagResponse(receipt_id=receipt_id, tags=tags)
+    except ValueError as e:
+        logger.error(f"Error validating total: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error tagging receipt: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred while tagging the receipt: {str(e)}")
 
 
 @router.get("/health")

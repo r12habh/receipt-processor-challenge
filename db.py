@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Index
+from sqlalchemy import create_engine, Column, Integer, String, Float, Table, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -6,6 +6,15 @@ import os
 
 Base = declarative_base()
 DATABASE_URL = "sqlite:///data/receipts.db"
+
+# Association table for receipt-tag many-to-many associations
+receipt_tags = Table(
+    'receipt_tags',
+    Base.metadata,
+    Column('receipt_id', String(36), ForeignKey('receipts.id', ondelete='CASCADE')),
+    Column('tag_id', Integer, ForeignKey('tags.id', ondelete='CASCADE')),
+    Index('idx_receipt_tag', 'receipt_id', 'tag_id')
+)
 
 
 class ReceiptDB(Base):
@@ -20,6 +29,7 @@ class ReceiptDB(Base):
                          lazy='joined')  # Enabled joined loading by default
     points = Column(Integer, nullable=False)
     receipt_hash = Column(String(64), nullable=False, unique=True)
+    tags = relationship('TagDB', secondary=receipt_tags, back_populates='receipts')
 
     # Add composite index for date-based queries
     __table_args__ = (
@@ -34,6 +44,14 @@ class ReceiptDB(Base):
         :return:
         """
         return datetime.strptime(f'{self.purchase_date} {self.purchase_time}', '%Y-%m-%d %H:%M')
+
+
+class TagDB(Base):
+    __tablename__ = 'tags'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False)
+    receipts = relationship('ReceiptDB', secondary=receipt_tags, back_populates='tags')
 
 
 class ItemDB(Base):
