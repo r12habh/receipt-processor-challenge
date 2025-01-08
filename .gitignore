@@ -7,5 +7,5 @@
 /dataSources/
 /dataSources.local.xml
 /data/
-/__pycache__/
+*/__pycache__/
 .idea
